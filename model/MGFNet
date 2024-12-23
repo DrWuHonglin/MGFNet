@@ -1,0 +1,246 @@
+import copy
+import datetime
+import os
+import pandas as pd
+import torchvision
+import torch.nn as nn
+import torch
+from torchvision import models
+import torch.nn.functional as F
+from torchvision.models import ResNet50_Weights, ResNet34_Weights
+from model_plus.MultiScaleGatedFusionModule import MSGFM, fusion_cwf_SPA, CrossAttention, fusion_cwf_se, CWGFM
+from model_plus.CrossModalMultiScaleSemanticGuidedModule import MSCAM, CMSGM
+from model_plus.fusion_dfem import DFEM
+from model_plus.MultiFeatureEnhancementModule import MultiFeatureEnhancementModule
+from model_plus.CrossSemanticAwareModel import CrossSemanticAttentionModule as CSAM, CAGFM
+from model_plus.ConvlutionEnhancement import EdgeEnhanceSE, FeatureEnhancement
+from model_plus.CMTDecoder import Decoder
+
+__all__ = ["ResNet50", "ResNet34"]
+
+
+def ResNet50():
+    resnet50 = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
+    return resnet50
+
+
+def ResNet34():
+    resnet34 = models.resnet34(weights=ResNet34_Weights.IMAGENET1K_V1)
+    return resnet34
+
+
+class Conv2dReLU(nn.Sequential):
+    def __init__(
+            self,
+            in_channels,
+            out_channels,
+            kernel_size,
+            padding=0,
+            stride=1,
+            use_batchnorm=True,
+    ):
+        conv = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            bias=not (use_batchnorm),
+        )
+        relu = nn.ReLU(inplace=True)
+
+        bn = nn.BatchNorm2d(out_channels)
+
+        super(Conv2dReLU, self).__init__(conv, bn, relu)
+
+
+class DecoderBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, skip_channels=0, use_batchnorm=True, ):
+        super().__init__()
+        self.conv1 = Conv2dReLU(in_channels + skip_channels, out_channels, kernel_size=3, padding=1,
+                                use_batchnorm=use_batchnorm, )
+        self.conv2 = Conv2dReLU(out_channels, out_channels, kernel_size=3, padding=1, use_batchnorm=use_batchnorm, )
+        self.up = nn.UpsamplingBilinear2d(scale_factor=2)
+
+    def forward(self, x, skip=None):
+        x = self.up(x)
+        # X:{tensor:10, 512, 16, 16} --> {tensor:10, 512, 32, 32}
+        if skip is not None:
+            # skip[0, 1, 2] [0]{tensor:10, 512, 32, 32}, [1]{tensor:10, 256, 64, 64}, [2]{tensor:10, 64, 128, 128}
+            x = torch.cat([x, skip], dim=1)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        return x
+
+
+class DecoderCup(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.n_skip = 3
+        self.conv_more = Conv2dReLU(1024, 512, kernel_size=3, padding=1, use_batchnorm=True, )
+        in_channels = [512, 256, 128, 64]
+        out_channels = [256, 128, 64, 16]
+        skip_channels = [512, 256, 64, 0]
+
+        if self.n_skip != 0:
+            for i in range(3 - self.n_skip):  # re-select the skip channels according to n_skip
+                skip_channels[3 - i] = 0
+
+        else:
+            skip_channels = [0, 0, 0, 0]
+
+        blocks = [
+            DecoderBlock(in_ch, out_ch, sk_ch) for in_ch, out_ch, sk_ch in zip(in_channels, out_channels, skip_channels)
+        ]
+        self.blocks = nn.ModuleList(blocks)
+
+    def forward(self, hidden_states, features=None):
+        # B, n_patch, hidden = hidden_states.size()  # reshape from (B, n_patch, hidden) to (B, h, w, hidden)
+        # # hidden_states:{tensor:10, 256, 768}
+        # # features[0, 1, 2] [0]{tensor:10, 512, 32, 32}, [1]{tensor:10, 256, 64, 64}, [2]{tensor:10, 64, 128, 128}
+        # h, w = int(np.sqrt(n_patch)), int(np.sqrt(n_patch))
+        # x = hidden_states.permute(0, 2, 1)
+        # # X:{tensor:10, 512, 16, 16}
+        # x = x.contiguous().view(B, hidden, h, w)
+        x = hidden_states
+        x = self.conv_more(x)
+
+        for i, decoder_block in enumerate(self.blocks):
+            if features is not None:
+                skip = features[i] if (i < self.n_skip) else None
+            else:
+                skip = None
+            x = decoder_block(x, skip=skip)
+        return x
+
+
+class SegmentationHead(nn.Sequential):
+
+    def __init__(self, in_channels, out_channels, kernel_size=3, upsampling=1):
+        conv2d = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=kernel_size // 2)
+        upsampling = nn.UpsamplingBilinear2d(scale_factor=upsampling) if upsampling > 1 else nn.Identity()
+        super().__init__(conv2d, upsampling)
+
+
+class MGFNet(nn.Module):
+    def __init__(self, num_class=6):
+        super(FResNet, self).__init__()
+        resnet50 = ResNet50()
+        self.dsm_conv0 = nn.Conv2d(1, 3, kernel_size=1)
+        self.rgb_conv1 = resnet50.conv1
+        self.dsm_conv1 = copy.deepcopy(resnet50.conv1)
+
+        self.rgb_bn1 = resnet50.bn1
+        self.dsm_bn1 = copy.deepcopy(resnet50.bn1)
+
+        self.relu = resnet50.relu
+        self.maxpool = resnet50.maxpool
+
+        self.rgb_layer1 = resnet50.layer1
+        self.dsm_layer1 = copy.deepcopy(resnet50.layer1)
+
+        self.rgb_layer2 = resnet50.layer2
+        self.dsm_layer2 = copy.deepcopy(resnet50.layer2)
+
+        self.rgb_layer3 = resnet50.layer3
+        self.dsm_layer3 = copy.deepcopy(resnet50.layer3)
+
+        # 多特征增强模块
+        self.csam_layer2 = CSAM(in_dim=512)
+        self.csam_layer3 = CSAM(in_dim=1024)
+
+        # 融合模块
+        self.se_layer0 = MSGFM(64, 64)
+        self.se_layer1 = MSGFM(256, 256)
+        self.se_layer2 = MSGFM(512, 512)
+        self.se_layer3 = MSGFM(1024, 1024)
+
+        # 多尺度注意力
+        self.PAME = CMSGM(dim=1024, in_dim=1024)
+        # 解码器
+        self.decoderCup = DecoderCup()
+
+        # 分割头
+        self.segmentationHead = SegmentationHead(16, num_class)
+
+    def forward(self, input_rgb, input_dsm):
+        SE = True
+        features = []
+        input_dsm = self.dsm_conv0(input_dsm)  # dsm通道变3
+
+        input_rgb0 = self.relu(self.rgb_bn1(self.rgb_conv1(input_rgb)))
+        input_dsm0 = self.relu(self.dsm_bn1(self.dsm_conv1(input_dsm)))
+        if SE:
+            fusion0 = self.se_layer0(input_rgb0, input_dsm0)
+        else:
+            fusion0 = input_rgb0 + input_dsm0
+        features.append(fusion0)
+        input_rgb = self.maxpool(fusion0)
+        input_dsm = self.maxpool(input_dsm0)
+
+        input_rgb1 = self.rgb_layer1(input_rgb)
+        input_dsm1 = self.dsm_layer1(input_dsm)
+        if SE:
+            fusion1 = self.se_layer1(input_rgb1, input_dsm1)
+        else:
+            fusion1 = input_rgb1 + input_dsm1
+        features.append(fusion1)
+
+        input_rgb2 = self.rgb_layer2(fusion1)
+        input_dsm2 = self.dsm_layer2(input_dsm1)
+        input_rgb2, input_dsm2 = self.csam_layer2(input_rgb2, input_dsm2)
+        if SE:
+            fusion2 = self.se_layer2(input_rgb2, input_dsm2)
+        else:
+            fusion2 = input_rgb2 + input_dsm2
+        features.append(fusion2)
+
+        # 深层 RGB
+        input_rgb3 = self.rgb_layer3(fusion2)
+        input_dsm3 = self.dsm_layer3(input_dsm2)
+        input_rgb3, input_dsm3 = self.csam_layer3(input_rgb3, input_dsm3)
+        if SE:
+            fusion3 = self.se_layer3(input_rgb3, input_dsm3)
+        else:
+            fusion3 = input_rgb3 + input_dsm3
+
+        # fusion3 = self.PAME(fusion3, input_rgb3, input_dsm3)
+        x = self.decoderCup(fusion3, features[::-1])
+        logits = self.segmentationHead(x)
+
+        return logits
+
+
+if __name__ == "__main__":
+    from thop import profile, clever_format
+
+    x = torch.randn(1, 3, 256, 256)
+    y = torch.randn(1, 1, 256, 256)
+    net = MGFNet()
+    # t = torch.load('../checkpoint/baseline_resnet50_epoch_33_91.46417727444361')
+    # net.load_state_dict(torch.load('../checkpoint/baseline_resnet50_epoch_33_91.46417727444361'), strict=False)
+    flops, params = profile(net, inputs=(x, y))
+    macs, params = clever_format([flops, params], "%.3f")
+    print("FLOPs:", macs)
+    print("params:", params)
+    result_dict = {}
+    result_dict["时间"] = datetime.datetime.now()
+    result_dict["模型格式"] = "baseline_Resnet50_CSAM_CMSGM"
+    result_dict["FLOPs"] = macs
+    result_dict["params"] = params
+    # 创建一个DataFrame
+    df = pd.DataFrame([result_dict])
+    # 将DataFrame写入CSV文件
+    # 获取当前脚本（utils.py）所在的目录
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # 构造相对于当前脚本的results文件夹路径
+    csv_filename = os.path.join(current_dir, 'FLOPs.csv')
+    # 检查CSV文件是否存在
+    if not os.path.exists(csv_filename):
+        # 如果文件不存在，保存第一次数据并包含列名
+        df.to_csv(csv_filename, index=False)
+    else:
+        # 如果文件存在，以追加模式打开文件并写入后续数据（不包含列名）
+        with open(csv_filename, 'a', newline='') as f:
+            df.to_csv(f, header=False, index=False)
