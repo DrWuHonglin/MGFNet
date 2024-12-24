@@ -38,6 +38,18 @@ MGFNet achieves competitive results on the following datasets:
 - pandas==2.0.1
 - ipython==8.12.3
 
+##Demo
+To quickly test the MGFNet with randomly generated tensors, you can run the demo.py file. This allows you to verify the model functionality without requiring a dataset.
+1. Ensure that the required dependencies are installed:
+```
+pip install -r requirements.txt
+
+```
+2. Run the demo script:
+```
+python demo.py
+
+```
 
 ## Datasets
 All datasets including ISPRS Potsdam, ISPRS Vaihingen can be downloaded [here](https://github.com/open-mmlab/mmsegmentation/blob/main/docs/en/user_guides/2_dataset_prepare.md#prepare-datasets).
