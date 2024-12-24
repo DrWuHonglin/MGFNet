@@ -2,7 +2,7 @@
 MGFNet: A Multiscale Gated Fusion Network For Multimodal Semantic Segmentation
 
 <p align="center">
-  <img src="" width="600" height="450">
+  <img src="https://github.com/DrWuHonglin/MGFNet/blob/main/images/framework.png" width="600" height="450">
 </p>
 
 This repository contains the official implementation of MGFNet, a novel network for multimodal semantic segmentation.
