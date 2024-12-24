@@ -396,22 +396,22 @@ class MGFNet(nn.Module):
         self.rgb_layer3 = resnet50.layer3
         self.dsm_layer3 = copy.deepcopy(resnet50.layer3)
 
-        # 多特征增强模块
+        
         self.csam_layer2 = CMI(in_dim=512)
         self.csam_layer3 = CMI(in_dim=1024)
 
-        # 融合模块
+        
         self.se_layer0 = MGF(64, 64)
         self.se_layer1 = MGF(256, 256)
         self.se_layer2 = MGF(512, 512)
         self.se_layer3 = MGF(1024, 1024)
 
-        # 多尺度注意力
+        
         self.PAME = CMME(dim=1024, in_dim=1024)
-        # 解码器
+     
         self.decoderCup = DecoderCup()
 
-        # 分割头
+      
         self.segmentationHead = SegmentationHead(16, num_class)
 
     def forward(self, input_rgb, input_dsm):
