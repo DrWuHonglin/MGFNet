@@ -1,6 +1,28 @@
 ## MGFNet
 MGFNet: A Multiscale Gated Fusion Network For Multimodal Semantic Segmentation
 
+<p align="center">
+  <img src="" width="600" height="450">
+</p>
+
+This repository contains the official implementation of MGFNet, a novel network for multimodal semantic segmentation.
+
+- Achieves efficient and precise multimodal remote sensing semantic segmentation
+- MGFNet: A dual-stream multimodal semantic segmentation network with a multilevel fusion strategy.
+- Introduces the MGF module for extracting multiscale complementary features and adaptively weighting modalities.
+- CMI & CMME Modules: The CMI module enables rich cross-modal interactions and long-range dependency modeling, while the CMME module enhances multiscale feature integration for improved segmentation.
+  
+## Results
+
+MGFNet achieves competitive results on the following datasets:
+- Vaihingen: 84.18% mIoU
+- Potsdam  : 85.87% mIoU
+
+<p align="center">
+  <img src="" width="600" height="450">
+</p>
+
+
 ## Installation
 1. Requirements
    
