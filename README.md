@@ -38,7 +38,7 @@ MGFNet achieves competitive results on the following datasets:
 - pandas==2.0.1
 - ipython==8.12.3
 
-##Demo
+## Demo
 To quickly test the MGFNet with randomly generated tensors, you can run the demo.py file. This allows you to verify the model functionality without requiring a dataset.
 1. Ensure that the required dependencies are installed:
 ```
