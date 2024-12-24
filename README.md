@@ -43,12 +43,10 @@ To quickly test the MGFNet with randomly generated tensors, you can run the demo
 1. Ensure that the required dependencies are installed:
 ```
 pip install -r requirements.txt
-
 ```
 2. Run the demo script:
 ```
 python demo.py
-
 ```
 
 ## Datasets
