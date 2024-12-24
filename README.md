@@ -14,10 +14,10 @@ This repository contains the official implementation of MGFNet, a novel network 
   
 ## Results
 
-MGFNet achieves competitive results on the following datasets:
+1. MGFNet achieves competitive results on the following datasets:
 - Vaihingen: 84.18% mIoU
 - Potsdam  : 85.87% mIoU
-We provide visualizations of our results on the Vaihingen and Potsdam datasets:
+2. We provide visualizations of our results on the Vaihingen and Potsdam datasets:
 <p align="center">
   <img src="https://github.com/DrWuHonglin/MGFNet/blob/main/images/vaihingen.png" width="800" height="450">
 </p>
