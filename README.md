@@ -2,7 +2,7 @@
 MGFNet: A Multiscale Gated Fusion Network For Multimodal Semantic Segmentation
 
 <p align="center">
-  <img src="https://github.com/DrWuHonglin/MGFNet/blob/main/images/framework.png" width="800" height="450">
+  <img src="https://github.com/DrWuHonglin/MGFNet/blob/main/images/framework.png" width="900" height="450">
 </p>
 
 This repository contains the official implementation of MGFNet, a novel network for multimodal semantic segmentation.
@@ -19,7 +19,10 @@ MGFNet achieves competitive results on the following datasets:
 - Potsdam  : 85.87% mIoU
 
 <p align="center">
-  <img src="" width="600" height="450">
+  <img src="https://github.com/DrWuHonglin/MGFNet/blob/main/images/vaihingen.png" width="800" height="450">
+</p>
+<p align="center">
+  <img src="https://github.com/DrWuHonglin/MGFNet/blob/main/images/potsdam.png" width="800" height="450">
 </p>
 
 
