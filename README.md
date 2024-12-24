@@ -17,14 +17,15 @@ This repository contains the official implementation of MGFNet, a novel network 
 MGFNet achieves competitive results on the following datasets:
 - Vaihingen: 84.18% mIoU
 - Potsdam  : 85.87% mIoU
-
+We provide visualizations of our results on the Vaihingen and Potsdam datasets:
 <p align="center">
   <img src="https://github.com/DrWuHonglin/MGFNet/blob/main/images/vaihingen.png" width="800" height="450">
 </p>
 <p align="center">
   <img src="https://github.com/DrWuHonglin/MGFNet/blob/main/images/potsdam.png" width="800" height="450">
 </p>
-
+Qualitative performance comparisons on the Vaihingen and Potsdam test set. (a) RGB images, (b) DSM, (c) Ground truth, (d) ABCNet, (e) TransUNet, (f) UNetFormer, (g)
+MAResU-Net, (h) CMTFNet, (i) vFuseNet, (j) SA-GATE, (k) ESANet, (l) CMGFNet, (m) CMFNet, (n) SGFNet, (o) AsymFormer, and (p) proposed MGFNet. Two red boxes are added to all subfigures to highlight the differences.
 
 ## Installation
 1. Requirements
