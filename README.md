@@ -1,5 +1,5 @@
 ## MGFNet
-MGFNet: A Multiscale Gated Fusion Network For Multimodal Semantic Segmentation
+MGFNet: A Multiscale Gated Fusion Network For Multimodal Semantic Segmentation [[Paper](https://doi.org/10.1007/s00371-025-03912-x)]
 
 <p align="center">
   <img src="https://github.com/DrWuHonglin/MGFNet/blob/main/images/framework.png" width="900" height="450">
